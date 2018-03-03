@@ -2,17 +2,33 @@ from scapy.all import *
 import os
 import sys
 import time
+import requests
+import SimpleHTTPServer
+import SocketServer
 
 ips = {}
-knock_seq = ['1000', '2000', '3000']
+knock_seq = [1000, 2000, 3000]
 
+
+def send_ssh_info(ip):
+	print 'Sending Info..'
+	time.sleep(1)
+	data = 'Port = 1234: new_seq = 333 444 555'
+	pingr = IP(dst=ip)/ICMP()/data
+	pingr.summary()
+	sr1(pingr)
+
+	
+	
 """
 	open the ssh server
 """
-def open_ssh_server(ip):
-	print 'Openening SSh.. '
-	os.system('service ssh start')
 
+def open_ssh_server(ip):
+	print 'Opening SSh.. ' + str(ip)
+	os.system('service ssh start')
+	send_ssh_info(ip)
+    
 """
 	Check the stores ip's port connection sequence
 	Deternine whether it matches the predetermined knock sequence
@@ -21,6 +37,9 @@ def open_ssh_server(ip):
 def check_knock_sequence(ip):
 	#print 'Checking Knock Sequence...'
 	knocks = ips[ip]['knocks']
+
+	if len(knocks) < 3:
+		return False
 
 	for i in range(0, 3):
 		if knocks[i] != knock_seq[i]:
@@ -38,6 +57,7 @@ def check_knock_sequence(ip):
 def check_time_seq(ip):
 	'Checking ip time...'
 	#print "Time " + str(ips[ip]['start_time'])
+
 	if int(time.time()) - ips[ip]['start_time'] > 10:
 		del ips[ip]
 	elif check_knock_sequence(ip):
@@ -52,14 +72,15 @@ def start_port_knock_daemon(pkt):
 		ip_obj = {'start_time' : int(time.time()), 'knocks' : []}
 		ip_obj['knocks'].append(pkt[TCP].dport)
 		ips[pkt[IP].src] = ip_obj
-		print "SRC = " + str(pkt[IP].src) + " DST = " + str(pkt[IP].dst) + " Port = " + str(pkt[TCP].dport)
+		#print "SRC = " + str(pkt[IP].src) + " DST = " + str(pkt[IP].dst) + " Port = " + str(pkt[TCP].dport)
 
 	elif TCP in pkt and str(pkt[IP].dst) == '172.16.96.65':
 		ips[pkt[IP].src]['knocks'].append(pkt[TCP].dport)
 		check_time_seq(pkt[IP].src)
+		#print "SRC = " + str(pkt[IP].src) + " DST = " + str(pkt[IP].dst) + " Port = " + str(pkt[TCP].dport)
 
-		
-    
+	
 
 if __name__ == "__main__":
-    sniff(iface="wlxf0795974b040", prn=start_port_knock_daemon, filter="", store=0)
+
+	sniff(iface="wlxf0795974b040", prn=start_port_knock_daemon, filter="", store=0)
